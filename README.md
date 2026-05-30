@@ -1,6 +1,6 @@
-# demo_agent：智谱 GLM + 工具调用 + 可观测链路 + 轻量 RAG
+# 一个demo_agent：智谱 GLM + 工具调用 + 可观测链路 + 轻量 RAG
 
-## 亮点（简历可写）
+## 亮点
 
 - **模块化 Agent 编排**：`orchestrator` 实现 GLM 工具调用闭环，工具层 / RAG / 记忆 / 观测解耦。
 - **全链路可观测**：`trace_id` + JSONL 记录 LLM 请求、工具耗时、会话统计；`analyze_trace.py` 可复盘单次对话。
