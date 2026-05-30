@@ -65,4 +65,4 @@ python analyze_trace.py logs/<trace_id>.jsonl
 
 ## 试试 RAG
 
-在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：「demo 的示例代号是什么？」「orchestrator 是干什么的？」模型应倾向先调用 `search_knowledge`。
+在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：“诶？demo 的示例代号是什么啊？” “bro 这个 orchestrator 是干什么的？” 模型应倾向先调用 `search_knowledge`。
