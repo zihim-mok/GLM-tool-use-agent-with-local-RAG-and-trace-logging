@@ -27,7 +27,15 @@ pip install -r requirements.txt
 python minimal_agent.py
 ```
 
+Windows 若无法 `activate` 虚拟环境，可直接双击 **`run.bat`**，或：
+
+```powershell
+.\.venv\Scripts\python.exe minimal_agent.py
+```
+
 多轮对话；空行或 `quit` / `exit` / `q` 退出。启动时会打印 **trace_id** 与 JSONL 路径（若开启）。
+
+**仓库**：https://github.com/zihim-mok/GLM-tool-use-agent-with-local-RAG-and-trace-logging
 
 ## 目录与模块（学习用分层）
 
