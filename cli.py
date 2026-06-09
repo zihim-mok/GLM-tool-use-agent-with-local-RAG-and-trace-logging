@@ -1,13 +1,9 @@
-"""交互入口：配置校验、会话 trace、多轮对话。"""
+"""命令行交互入口。"""
 from __future__ import annotations
 
-from zai import ZhipuAiClient
-
+from agent_core import chat, create_session
 from config import AppConfig
-from orchestrator import run_turn
-from rag import KnowledgeIndex
 from trace import TraceSession, setup_logging
-from tools import make_dispatch
 
 
 def _end_session(trace: TraceSession, reason: str) -> None:
@@ -23,37 +19,17 @@ def _end_session(trace: TraceSession, reason: str) -> None:
 def run_interactive() -> None:
     setup_logging()
     config = AppConfig.from_env()
+    session = create_session(config)
 
-    if not config.zhipu_api_key:
-        raise SystemExit("请配置 ZHIPU_API_KEY（.env 或环境变量）。")
-    if not config.zhipu_api_key.isascii():
-        raise SystemExit(
-            "ZHIPU_API_KEY 须为纯 ASCII。检查 .env 是否保存、是否误用中文占位符。"
-        )
-
-    trace = TraceSession.new(config.trace_jsonl_dir)
-    client = ZhipuAiClient(api_key=config.zhipu_api_key)
-    index = KnowledgeIndex(config.knowledge_dir, config.rag_chunk_size, config.rag_chunk_overlap)
-    dispatch = make_dispatch(config, index)
-
-    messages: list[dict] = [
-        {
-            "role": "system",
-            "content": (
-                "你是助手。需要准确时间或算术时调用对应工具；"
-                "涉及本 demo 项目说明、知识库中的固定事实时，先调用 search_knowledge 再回答，不要编造。"
-            ),
-        },
-    ]
-
+    trace: TraceSession = session["trace"]
     print("模型:", config.glm_model)
-    print("知识库目录:", config.knowledge_dir)
+    print("知识库:", config.knowledge_dir)
+    print("联网行情:", "开启" if config.use_live_market_data else "关闭（仅本地 CSV）")
+    print("行情回退:", config.quotes_csv)
     print("trace_id:", trace.trace_id)
     if trace.jsonl_file:
         print("JSONL 日志:", trace.jsonl_file)
     print("输入问题；空行或 quit / exit / q 结束。\n")
-
-    trace.emit("session_start", model=config.glm_model)
 
     while True:
         try:
@@ -67,10 +43,7 @@ def run_interactive() -> None:
             _end_session(trace, "quit")
             break
 
-        messages.append({"role": "user", "content": user_text})
-        trace.stats["user_turns"] += 1
-        trace.emit("user_message", preview=user_text[:200])
         print("---")
-        answer = run_turn(client, config, messages, dispatch, trace)
+        answer = chat(session, user_text)
         print("助手:", answer)
         print("---")

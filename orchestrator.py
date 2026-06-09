@@ -6,6 +6,8 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+ToolEventCallback = Callable[[str, str, str], None]
+
 from zai import ZhipuAiClient
 
 from config import AppConfig
@@ -20,6 +22,7 @@ def run_turn(
     messages: list[dict[str, Any]],
     dispatch_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
     trace: TraceSession,
+    on_tool_event: ToolEventCallback | None = None,
 ) -> str:
     tools = tool_definitions()
     for round_i in range(config.max_tool_rounds):
@@ -76,7 +79,10 @@ def run_turn(
                     "content": payload,
                 }
             )
-            print(f"  [tool] {fn.name}({raw_args}) -> {payload[:300]}{'...' if len(payload) > 300 else ''}")
+            if on_tool_event is not None:
+                on_tool_event(fn.name, raw_args, payload)
+            else:
+                print(f"  [tool] {fn.name}({raw_args}) -> {payload[:300]}{'...' if len(payload) > 300 else ''}")
 
     trace.emit("abort_max_tool_rounds", limit=config.max_tool_rounds)
     trim_messages(messages, config.max_context_messages)

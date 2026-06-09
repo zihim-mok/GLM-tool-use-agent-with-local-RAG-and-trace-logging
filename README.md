@@ -1,16 +1,22 @@
-# 一个demo_agent：智谱 GLM + 工具调用 + 可观测链路 + 轻量 RAG
+# FinAgent：可观测的智谱 GLM 金融 Tool-Use Agent
+
+面向金融场景的 Tool-Use Agent：14 个确定性工具（复利/房贷/行情/组合）+ 本地 TF-IDF RAG + JSONL 全链路 Trace + Gradio Web。
+
+**仓库**：https://github.com/zihim-mok/GLM-tool-use-agent-with-local-RAG-and-trace-logging  
+**项目说明（简历/答辩用）**：见 [PROJECT.md](./PROJECT.md)
 
 ## 亮点
 
-- **模块化 Agent 编排**：`orchestrator` 实现 GLM 工具调用闭环，工具层 / RAG / 记忆 / 观测解耦。
-- **全链路可观测**：`trace_id` + JSONL 记录 LLM 请求、工具耗时、会话统计；`analyze_trace.py` 可复盘单次对话。
-- **零向量依赖 RAG**：本地 md/txt 滑动切块 + TF-IDF 检索，降低学习与部署成本。
-- **工程防护**：工具轮次上限、上下文截断、表达式白名单计算。
+- **Tool-Use 多轮编排**：`orchestrator` 实现 GLM 工具调用闭环，CLI/Web 共用 `agent_core`
+- **全链路可观测**：`trace_id` + JSONL 记录 LLM 请求、工具耗时；`analyze_trace.py` 可复盘
+- **多级行情兜底**：东财 → akshare → 腾讯证券 → 本地 CSV；工具层拦截离谱 `date`
+- **零向量 RAG**：本地 md/txt + TF-IDF，无 embedding API 依赖
+- **工程防护**：工具轮次上限、上下文截断、表达式白名单计算
 
 ## 准备
 
-1. Python 3.10+ 推荐。
-2. 安装 **`zai-sdk`**（勿装 PyPI 占位包 **`zai`**）。
+1. Python 3.10+
+2. 安装依赖（勿装 PyPI 占位包 `zai`，应装 `zai-sdk`）
 
 ```bash
 cd demo_agent
@@ -19,43 +25,79 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-3. 复制 `.env.example` 为 `.env`，填入 `ZHIPU_API_KEY`。`.env` 会覆盖同名系统环境变量。
+3. 复制 `.env.example` 为 `.env`，填入智谱 `ZHIPU_API_KEY`
 
 ## 运行
+
+### 命令行
 
 ```bash
 python minimal_agent.py
 ```
 
-Windows 若无法 `activate` 虚拟环境，可直接双击 **`run.bat`**，或：
+或双击 **`run.bat`** /：
 
 ```powershell
 .\.venv\Scripts\python.exe minimal_agent.py
 ```
 
-多轮对话；空行或 `quit` / `exit` / `q` 退出。启动时会打印 **trace_id** 与 JSONL 路径（若开启）。
+### Web 页面（Gradio）
 
-**仓库**：https://github.com/zihim-mok/GLM-tool-use-agent-with-local-RAG-and-trace-logging
+```bash
+python web_app.py
+```
 
-## 目录与模块（学习用分层）
+或双击 **`run_web.bat`**，浏览器打开 `http://127.0.0.1:7860`
+
+## 内置工具
+
+| 类别 | 工具 |
+|------|------|
+| 通用 | `get_current_time`, `calculate`, `search_knowledge` |
+| 理财计算 | `compound_interest`, `simple_interest`, `loan_monthly_payment`, `savings_goal_monthly` |
+| 指标 | `pct_change`, `cagr`, `rule_of_72`, `inflation_adjust` |
+| 行情/组合 | `lookup_quote`, `get_stock_history`, `get_fx_usdcny`, `compare_symbols`, `portfolio_summary` |
+
+**联网行情**（默认开启，失败自动回退本地 CSV）：
+
+| 数据 | 优先数据源 | 备用 |
+|------|-----------|------|
+| A 股 | 东方财富 push2 API | akshare → 腾讯证券 → CSV |
+| A 股指数 | 东方财富 | — |
+| 美股 | 东方财富 / Stooq | yfinance |
+| 美元兑人民币 | 东方财富 / frankfurter.app | — |
+| 历史 K 线 | akshare（A 股）/ Stooq（美股） | — |
+
+关闭联网：`.env` 设 `USE_LIVE_MARKET_DATA=false`
+
+## 试试这些问题
+
+- `600519 最近收盘价多少`
+- `1 万本金年化 3% 按月复利存 5 年多少钱`
+- `贷款 80 万、年利率 4.5%、30 年每月还多少`
+- `帮我看看示例组合盈亏`
+- `年化 8% 几年翻倍`
+- `AAPL 和 MSFT 股价对比`
+- `复利和单利有什么区别`
+
+## 目录
 
 | 文件 | 作用 |
 |------|------|
-| `minimal_agent.py` | 入口：加载 `.env` 后启动 CLI |
-| `cli.py` | 交互循环、创建 `TraceSession`、组装 client / 知识库 / dispatch |
-| `orchestrator.py` | 单轮内「请求 GLM → 执行 tool → 再请求」循环 + trace 埋点 |
-| `tools.py` | `tool_definitions()` + `make_dispatch()`（时间、计算器、**search_knowledge**） |
-| `rag.py` | 读取 `knowledge/*.md|txt`，切块，**TF-IDF** 词面检索 |
-| `memory.py` | 每轮结束后按 `MAX_CONTEXT_MESSAGES` **截断** `messages` |
-| `trace.py` | `trace_id` + 控制台日志 + `logs/<uuid>.jsonl`；会话级统计 |
-| `analyze_trace.py` | 解析 JSONL，输出事件时间线与工具耗时汇总 |
-| `config.py` | `AppConfig.from_env()` 集中读环境变量 |
-| `env_loader.py` | 解析 `.env` |
-| `knowledge/` | 示例 `demo_notes.md`，可自行增删 |
+| `minimal_agent.py` | CLI 入口 |
+| `web_app.py` | Gradio Web 入口 |
+| `agent_core.py` | CLI/Web 共用会话与系统提示 |
+| `orchestrator.py` | 模型与工具多轮循环 |
+| `tools.py` / `finance_tools.py` | 工具定义与实现 |
+| `rag.py` | 本地 md/txt + TF-IDF 检索 |
+| `trace.py` / `analyze_trace.py` | JSONL 日志与复盘 |
+| `knowledge/` | 金融 FAQ 等文档 |
+| `data/` | 示例行情与持仓 CSV |
+| `PROJECT.md` | 项目背景、架构、简历话术、面试备答 |
 
-## 环境变量（可选）
+## 环境变量
 
-见 `.env.example`：`MAX_TOOL_ROUNDS`、`MAX_CONTEXT_MESSAGES`、`KNOWLEDGE_DIR`、`RAG_*`、`TRACE_JSONL_DIR`（设为 `0` / `false` / `off` 可关闭写 JSONL）。
+见 `.env.example`：`GLM_MODEL`、`QUOTES_CSV`、`HOLDINGS_CSV`、`WEB_PORT` 等。
 
 ## 复盘 trace
 
@@ -65,4 +107,4 @@ python analyze_trace.py logs/<trace_id>.jsonl
 
 ## 试试 RAG
 
-在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：“诶？demo 的示例代号是什么啊？” “bro 这个 orchestrator 是干什么的？” 模型应倾向先调用 `search_knowledge`。
+在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：「复利和单利有什么区别？」「demo 的示例代号是什么？」模型应倾向先调用 `search_knowledge`。
