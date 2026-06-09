@@ -107,4 +107,4 @@ python analyze_trace.py logs/<trace_id>.jsonl
 
 ## 试试 RAG
 
-在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：「复利和单利有什么区别？」「demo 的示例代号是什么？」模型应倾向先调用 `search_knowledge`。
+在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：复利和单利有什么区别？ or demo 的示例代号是什么？ 模型应倾向先调用 `search_knowledge`。
