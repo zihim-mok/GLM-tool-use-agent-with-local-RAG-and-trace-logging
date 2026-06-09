@@ -3,7 +3,7 @@
 面向金融场景的 Tool-Use Agent：14 个确定性工具（复利/房贷/行情/组合）+ 本地 TF-IDF RAG + JSONL 全链路 Trace + Gradio Web。
 
 **仓库**：https://github.com/zihim-mok/GLM-tool-use-agent-with-local-RAG-and-trace-logging  
-**项目说明（简历/答辩用）**：见 [PROJECT.md](./PROJECT.md)
+
 
 ## 亮点
 
