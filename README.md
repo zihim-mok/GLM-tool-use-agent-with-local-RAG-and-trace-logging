@@ -150,11 +150,7 @@ trace_id: sample-trace-001
 
 完整样例见 [docs/trace_example.txt](./docs/trace_example.txt)。
 
-## 截图与演示
 
-将 Web 界面截图放入 `docs/screenshots/`（见 [docs/screenshots/README.md](./docs/screenshots/README.md)）。
-
-建议文件：`web_chat.png`、`web_tools_panel.png`、`demo.gif`
 
 ## 测试
 
