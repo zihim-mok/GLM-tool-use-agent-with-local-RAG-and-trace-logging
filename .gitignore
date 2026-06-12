@@ -3,3 +3,6 @@
 __pycache__/
 *.pyc
 logs/
+data/cache_test/
+data/cache/
+data/quote_cache.json

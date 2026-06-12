@@ -1,0 +1,9 @@
+{"ts":"2026-05-28T10:00:01","trace_id":"sample-trace-001","event":"session_start","model":"glm-4-flash","scene_mode":"educational"}
+{"ts":"2026-05-28T10:00:02","trace_id":"sample-trace-001","event":"user_message","preview":"600519 最近收盘价多少？"}
+{"ts":"2026-05-28T10:00:03","trace_id":"sample-trace-001","event":"llm_request","round":0,"message_count":2}
+{"ts":"2026-05-28T10:00:04","trace_id":"sample-trace-001","event":"llm_response","round":0,"has_tool_calls":true}
+{"ts":"2026-05-28T10:00:04","trace_id":"sample-trace-001","event":"tool_call","name":"lookup_quote","arguments_preview":"{\"symbol\":\"600519\"}"}
+{"ts":"2026-05-28T10:00:05","trace_id":"sample-trace-001","event":"tool_result","name":"lookup_quote","duration_ms":420,"result_preview":"{\"symbol\":\"600519\",\"close\":1688.1}"}
+{"ts":"2026-05-28T10:00:06","trace_id":"sample-trace-001","event":"llm_request","round":1,"message_count":4}
+{"ts":"2026-05-28T10:00:07","trace_id":"sample-trace-001","event":"llm_response","round":1,"has_tool_calls":false}
+{"ts":"2026-05-28T10:00:07","trace_id":"sample-trace-001","event":"assistant_final","round":1,"preview":"贵州茅台(600519)最近收盘价约 1688.10 元。"}

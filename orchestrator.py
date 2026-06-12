@@ -13,7 +13,43 @@ from zai import ZhipuAiClient
 from config import AppConfig
 from memory import trim_messages
 from trace import TraceSession
-from tools import tool_definitions
+from tool_registry import tool_definitions
+
+_SESSION_DEDUPE_TOOLS = frozenset({"lookup_quote", "compare_symbols"})
+
+
+def tool_call_cache_key(name: str, args: dict[str, Any]) -> str:
+    return json.dumps({"name": name, "args": args}, sort_keys=True, ensure_ascii=False)
+
+
+def resolve_tool_result(
+    name: str,
+    args: dict[str, Any],
+    dispatch_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
+    *,
+    turn_cache: dict[str, dict[str, Any]],
+    dedupe_cache: dict[str, dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    key = tool_call_cache_key(name, args)
+    if key in turn_cache:
+        out = dict(turn_cache[key])
+        out["deduped"] = True
+        out["dedupe_scope"] = "turn"
+        return out
+    if name in _SESSION_DEDUPE_TOOLS and dedupe_cache is not None and key in dedupe_cache:
+        out = dict(dedupe_cache[key])
+        out["deduped"] = True
+        out["dedupe_scope"] = "session"
+        return out
+    result = dispatch_tool(name, args)
+    turn_cache[key] = result
+    if (
+        name in _SESSION_DEDUPE_TOOLS
+        and dedupe_cache is not None
+        and "error" not in result
+    ):
+        dedupe_cache[key] = result
+    return result
 
 
 def run_turn(
@@ -23,8 +59,10 @@ def run_turn(
     dispatch_tool: Callable[[str, dict[str, Any]], dict[str, Any]],
     trace: TraceSession,
     on_tool_event: ToolEventCallback | None = None,
+    dedupe_cache: dict[str, dict[str, Any]] | None = None,
 ) -> str:
     tools = tool_definitions()
+    turn_cache: dict[str, dict[str, Any]] = {}
     for round_i in range(config.max_tool_rounds):
         trace.stats["llm_rounds"] += 1
         trace.emit("llm_request", round=round_i, message_count=len(messages))
@@ -61,7 +99,13 @@ def run_turn(
                 args = {}
             trace.emit("tool_call", name=fn.name, arguments_preview=raw_args[:500])
             t0 = time.perf_counter()
-            result = dispatch_tool(fn.name, args)
+            result = resolve_tool_result(
+                fn.name,
+                args,
+                dispatch_tool,
+                turn_cache=turn_cache,
+                dedupe_cache=dedupe_cache,
+            )
             duration_ms = int((time.perf_counter() - t0) * 1000)
             trace.stats["tool_calls"] += 1
             trace.stats["tool_ms_total"] += duration_ms

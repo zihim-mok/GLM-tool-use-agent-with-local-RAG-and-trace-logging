@@ -34,6 +34,9 @@ class AppConfig:
     use_live_market_data: bool
     web_host: str
     web_port: int
+    quote_cache_ttl_seconds: int
+    quote_cache_dir: Path | None
+    scene_mode: str
 
     @classmethod
     def from_env(cls) -> AppConfig:
@@ -57,4 +60,10 @@ class AppConfig:
             not in ("0", "false", "off", "no"),
             web_host=os.getenv("WEB_HOST", "127.0.0.1").strip(),
             web_port=max(1, int(os.getenv("WEB_PORT", "7860"))),
+            quote_cache_ttl_seconds=max(0, int(os.getenv("QUOTE_CACHE_TTL_SECONDS", "600"))),
+            quote_cache_dir=_resolve_path(os.getenv("QUOTE_CACHE_DIR", ""), "data/cache")
+            if os.getenv("QUOTE_CACHE_DIR", "data/cache").strip().lower()
+            not in ("0", "false", "off", "no", "")
+            else None,
+            scene_mode=os.getenv("SCENE_MODE", "educational").strip().lower(),
         )

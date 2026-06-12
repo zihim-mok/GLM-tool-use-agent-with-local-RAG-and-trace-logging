@@ -1,6 +1,8 @@
 """命令行交互入口。"""
 from __future__ import annotations
 
+import argparse
+
 from agent_core import chat, create_session
 from config import AppConfig
 from trace import TraceSession, setup_logging
@@ -16,13 +18,15 @@ def _end_session(trace: TraceSession, reason: str) -> None:
     )
 
 
-def run_interactive() -> None:
+def run_interactive(scene_mode: str | None = None) -> None:
     setup_logging()
     config = AppConfig.from_env()
-    session = create_session(config)
+    mode = scene_mode or config.scene_mode
+    session = create_session(config, scene_mode=mode)
 
     trace: TraceSession = session["trace"]
     print("模型:", config.glm_model)
+    print("场景模式:", mode)
     print("知识库:", config.knowledge_dir)
     print("联网行情:", "开启" if config.use_live_market_data else "关闭（仅本地 CSV）")
     print("行情回退:", config.quotes_csv)
@@ -47,3 +51,18 @@ def run_interactive() -> None:
         answer = chat(session, user_text)
         print("助手:", answer)
         print("---")
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="FinAgent CLI")
+    parser.add_argument(
+        "--mode",
+        choices=["educational", "quick", "portfolio"],
+        help="场景模式（覆盖 SCENE_MODE 环境变量）",
+    )
+    args, _ = parser.parse_known_args()
+    run_interactive(scene_mode=args.mode)
+
+
+if __name__ == "__main__":
+    main()

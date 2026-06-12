@@ -263,6 +263,98 @@ def portfolio_summary(holdings_path: Path, quotes_path: Path) -> dict[str, Any]:
     }
 
 
+def sharpe_ratio(
+    returns: list[float],
+    risk_free_rate: float = 0.0,
+) -> dict[str, Any]:
+    """夏普比率：超额收益均值 / 收益标准差（按每期收益，非年化调整）。"""
+    if not returns or len(returns) < 2:
+        return {"error": "returns 至少需要 2 个数值"}
+    n = len(returns)
+    excess = [r - risk_free_rate for r in returns]
+    mean_ex = sum(excess) / n
+    var = sum((x - mean_ex) ** 2 for x in excess) / (n - 1)
+    std = math.sqrt(var)
+    if std == 0:
+        return {"error": "收益标准差为 0，无法计算夏普比率"}
+    sharpe = mean_ex / std
+    return {
+        "periods": n,
+        "risk_free_rate": risk_free_rate,
+        "mean_excess_return": round(mean_ex, 6),
+        "std_excess_return": round(std, 6),
+        "sharpe_ratio": round(sharpe, 4),
+        "note": "未年化调整的夏普比率，仅供学习参考。",
+    }
+
+
+def max_drawdown(prices: list[float]) -> dict[str, Any]:
+    """最大回撤：从峰值到谷底的最大跌幅 (%)。"""
+    if not prices or len(prices) < 2:
+        return {"error": "prices 至少需要 2 个数值"}
+    peak = prices[0]
+    max_dd = 0.0
+    peak_idx = 0
+    trough_idx = 0
+    best_peak_idx = 0
+    for i, p in enumerate(prices):
+        if p > peak:
+            peak = p
+            peak_idx = i
+        if peak > 0:
+            dd = (peak - p) / peak
+            if dd > max_dd:
+                max_dd = dd
+                trough_idx = i
+                best_peak_idx = peak_idx
+    return {
+        "periods": len(prices),
+        "max_drawdown_pct": round(max_dd * 100, 4),
+        "peak_index": best_peak_idx,
+        "trough_index": trough_idx,
+        "peak_price": round(prices[best_peak_idx], 4),
+        "trough_price": round(prices[trough_idx], 4),
+        "formula": "max((peak - price) / peak)",
+    }
+
+
+def bond_yield_estimate(
+    face: float,
+    price: float,
+    years: float,
+    coupon_rate: float,
+) -> dict[str, Any]:
+    """债券到期收益率 YTM 近似（平价付息，牛顿迭代）。"""
+    if face <= 0 or price <= 0 or years <= 0:
+        return {"error": "面值、价格、年限均须大于 0"}
+    if coupon_rate < 0:
+        return {"error": "票面利率不能为负"}
+    coupon = face * coupon_rate / 100.0
+    ytm = coupon_rate / 100.0
+    for _ in range(50):
+        if abs(1 + ytm) < 1e-9:
+            break
+        pv_coupons = sum(coupon / (1 + ytm) ** t for t in range(1, int(years) + 1))
+        pv_face = face / (1 + ytm) ** years
+        f = pv_coupons + pv_face - price
+        df = 0.0
+        for t in range(1, int(years) + 1):
+            df -= t * coupon / (1 + ytm) ** (t + 1)
+        df -= years * face / (1 + ytm) ** (years + 1)
+        if abs(df) < 1e-12:
+            break
+        ytm -= f / df
+    return {
+        "face": round(face, 2),
+        "price": round(price, 2),
+        "years": years,
+        "coupon_rate_pct": coupon_rate,
+        "annual_coupon": round(coupon, 2),
+        "ytm_pct": round(ytm * 100, 4),
+        "note": "年付息 YTM 近似，仅供学习演示。",
+    }
+
+
 def savings_goal_monthly(
     target_amount: float,
     annual_rate_pct: float,

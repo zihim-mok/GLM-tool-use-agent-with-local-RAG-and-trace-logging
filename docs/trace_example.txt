@@ -1,0 +1,14 @@
+trace_id: sample-trace-001
+事件数: 9
+
+01 2026-05-28T10:00:01  session_start
+02 2026-05-28T10:00:02  user_message 600519 最近收盘价多少？
+03 2026-05-28T10:00:03  llm_request
+04 2026-05-28T10:00:04  llm_response tool_calls=True
+05 2026-05-28T10:00:04  tool_call lookup_quote
+06 2026-05-28T10:00:05  tool_result lookup_quote 420ms
+07 2026-05-28T10:00:06  llm_request
+08 2026-05-28T10:00:07  llm_response tool_calls=False
+09 2026-05-28T10:00:07  assistant_final 贵州茅台(600519)最近收盘价约 1688.10 元。
+
+汇总: LLM 响应轮次=2 工具调用=1 工具总耗时=420ms

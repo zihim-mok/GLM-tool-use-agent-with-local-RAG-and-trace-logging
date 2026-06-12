@@ -208,14 +208,23 @@ def build_app() -> gr.Blocks:
     session = create_session(config)
     trace = session["trace"]
     tool_logs: list[str] = []
+    scene_mode = session.get("scene_mode", config.scene_mode)
 
-    def respond(user_message: str, history: list[dict[str, Any]]):
+    def respond(user_message: str, history: list[dict[str, Any]], mode: str):
         history = history or []
         if not user_message.strip():
             return history, "\n".join(tool_logs), ""
 
         def on_tool(name: str, args: str, payload: str) -> None:
             tool_logs.append(_format_tool_log(name, args, payload))
+
+        if mode and mode != session.get("scene_mode"):
+            new_sess = create_session(config, scene_mode=mode)
+            session.clear()
+            session.update(new_sess)
+            nonlocal trace
+            trace = new_sess["trace"]
+            session["scene_mode"] = mode
 
         try:
             answer = chat(session, user_message.strip(), on_tool_event=on_tool)
@@ -224,6 +233,7 @@ def build_app() -> gr.Blocks:
 
         meta = {
             "trace_id": trace.trace_id,
+            "scene_mode": session.get("scene_mode", mode),
             "tools": trace.stats["tool_calls"],
             "tool_ms": trace.stats["tool_ms_total"],
         }
@@ -233,9 +243,9 @@ def build_app() -> gr.Blocks:
             json.dumps(meta, ensure_ascii=False, indent=2),
         )
 
-    def clear_session():
+    def clear_session(mode: str):
         tool_logs.clear()
-        new_session = create_session(config)
+        new_session = create_session(config, scene_mode=mode or config.scene_mode)
         session.clear()
         session.update(new_session)
         nonlocal trace
@@ -257,6 +267,13 @@ def build_app() -> gr.Blocks:
                 f'<span class="badge badge-slate">trace {trace.trace_id[:8]}…</span>'
                 f"</p></div>",
             )
+
+        mode_dropdown = gr.Dropdown(
+            choices=["educational", "quick", "portfolio"],
+            value=scene_mode,
+            label="场景模式",
+            info="educational=教学讲解 | quick=快答 | portfolio=组合分析",
+        )
 
         with gr.Row():
             with gr.Column(scale=3, elem_classes=["panel-card"]):
@@ -303,13 +320,13 @@ def build_app() -> gr.Blocks:
             elem_id="disclaimer",
         )
 
-        send.click(respond, [msg, chatbot], [chatbot, tools_box, meta_box]).then(
+        send.click(respond, [msg, chatbot, mode_dropdown], [chatbot, tools_box, meta_box]).then(
             lambda: "", outputs=msg
         )
-        msg.submit(respond, [msg, chatbot], [chatbot, tools_box, meta_box]).then(
+        msg.submit(respond, [msg, chatbot, mode_dropdown], [chatbot, tools_box, meta_box]).then(
             lambda: "", outputs=msg
         )
-        clear.click(clear_session, outputs=[chatbot, tools_box, meta_box])
+        clear.click(clear_session, [mode_dropdown], outputs=[chatbot, tools_box, meta_box])
 
     return demo
 

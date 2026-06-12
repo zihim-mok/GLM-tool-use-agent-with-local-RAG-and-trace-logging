@@ -54,6 +54,26 @@ def sanitize_quote_date(date: str | None) -> tuple[str | None, dict[str, Any] | 
     return raw, None
 
 
+def enrich_quote_date_fields(result: dict[str, Any]) -> dict[str, Any]:
+    """为行情结果标注 trade_date，便于区分交易日与查询时刻。"""
+    if "error" in result:
+        return result
+    out = dict(result)
+    trade = str(out.get("trade_date") or out.get("date") or "").strip()
+    if trade:
+        out["trade_date"] = trade
+        out.setdefault("date", trade)
+    market = str(out.get("market") or "")
+    if market in ("A股", "A股指数"):
+        out["price_label"] = "收盘价"
+        out["trade_date_note"] = (
+            "trade_date 为本条行情所属的 A 股交易日；"
+            "收盘后仍可通过 lookup_quote 获取当日收盘价。"
+            "retrieved_at 为本次查询时刻。"
+        )
+    return out
+
+
 def _retry(fn: Callable[[], dict[str, Any]], attempts: int = 3) -> dict[str, Any]:
     last_err: Exception | None = None
     for i in range(attempts):
@@ -347,19 +367,19 @@ def fetch_live_quote(symbol: str, date: str | None = None) -> dict[str, Any]:
     if _is_index(sym):
         secid = _normalize_index(sym)
         em = _retry(lambda: _fetch_eastmoney_secid(secid, "A股指数"), attempts=2)
-        return em
+        return enrich_quote_date_fields(em)
 
     if _is_a_share(sym):
-        return _fetch_a_share_live(sym, date)
+        return enrich_quote_date_fields(_fetch_a_share_live(sym, date))
 
     if date:
-        return _retry(lambda: _fetch_yfinance(sym.upper(), date))
+        return enrich_quote_date_fields(_retry(lambda: _fetch_yfinance(sym.upper(), date)))
 
     for fetcher in (_fetch_eastmoney_us, _fetch_stooq_us):
         result = _retry(lambda f=fetcher: f(sym), attempts=2)
         if "error" not in result:
-            return result
-    return _retry(lambda: _fetch_yfinance(sym.upper()), attempts=2)
+            return enrich_quote_date_fields(result)
+    return enrich_quote_date_fields(_retry(lambda: _fetch_yfinance(sym.upper()), attempts=2))
 
 
 def fetch_stock_history(symbol: str, days: int = 30) -> dict[str, Any]:
@@ -459,17 +479,31 @@ def lookup_quote_with_fallback(
     date: str | None = None,
     *,
     use_live: bool = True,
+    ttl_seconds: int = 600,
+    cache_dir: Path | None = None,
 ) -> dict[str, Any]:
     clean_date, date_err = sanitize_quote_date(date)
     if date_err:
         return date_err
     date = clean_date
 
+    if ttl_seconds > 0:
+        from quote_cache import get_cached, set_cached
+
+        cached = get_cached(symbol, date, ttl_seconds, cache_dir)
+        if cached is not None:
+            return enrich_quote_date_fields(cached)
+
     live_err: dict[str, Any] | None = None
     if use_live:
         try:
             result = fetch_live_quote(symbol, date)
             if "error" not in result:
+                result = enrich_quote_date_fields(result)
+                if ttl_seconds > 0:
+                    from quote_cache import set_cached
+
+                    set_cached(symbol, date, result, cache_dir)
                 return result
             live_err = result
         except Exception as e:
@@ -479,15 +513,21 @@ def lookup_quote_with_fallback(
 
     local = local_lookup(symbol, csv_path, date)
     if "error" not in local:
+        local = enrich_quote_date_fields(local)
         local["fallback"] = True
         err_msg = live_err.get("error") if live_err else "已关闭"
         local["source"] = f"本地 CSV（联网失败: {err_msg}）"
+        if ttl_seconds > 0:
+            from quote_cache import set_cached
+
+            set_cached(symbol, date, local, cache_dir)
         return local
 
     # 指定日期本地也没有时，再试本地最近一条
     if date and _is_a_share(symbol.strip()):
         local_latest = local_lookup(symbol, csv_path, None)
         if "error" not in local_latest:
+            local_latest = enrich_quote_date_fields(local_latest)
             local_latest["fallback"] = True
             local_latest["note"] = f"联网与指定日期 {date} 均不可用，已返回 CSV 最近记录"
             return local_latest
@@ -501,9 +541,15 @@ def compare_symbols_live(
     csv_path: Path,
     *,
     use_live: bool = True,
+    ttl_seconds: int = 600,
+    cache_dir: Path | None = None,
 ) -> dict[str, Any]:
-    qa = lookup_quote_with_fallback(symbol_a, csv_path, use_live=use_live)
-    qb = lookup_quote_with_fallback(symbol_b, csv_path, use_live=use_live)
+    qa = lookup_quote_with_fallback(
+        symbol_a, csv_path, use_live=use_live, ttl_seconds=ttl_seconds, cache_dir=cache_dir
+    )
+    qb = lookup_quote_with_fallback(
+        symbol_b, csv_path, use_live=use_live, ttl_seconds=ttl_seconds, cache_dir=cache_dir
+    )
     if "error" in qa:
         return qa
     if "error" in qb:
@@ -521,6 +567,8 @@ def portfolio_summary_live(
     csv_path: Path,
     *,
     use_live: bool = True,
+    ttl_seconds: int = 600,
+    cache_dir: Path | None = None,
 ) -> dict[str, Any]:
     if not holdings_path.is_file():
         return {"error": f"持仓文件不存在: {holdings_path}"}
@@ -538,7 +586,13 @@ def portfolio_summary_live(
             cost = float(row.get("avg_cost", 0) or 0)
             if not sym or shares <= 0:
                 continue
-            q = lookup_quote_with_fallback(sym, csv_path, use_live=use_live)
+            q = lookup_quote_with_fallback(
+                sym,
+                csv_path,
+                use_live=use_live,
+                ttl_seconds=ttl_seconds,
+                cache_dir=cache_dir,
+            )
             if "error" in q:
                 positions.append({"symbol": sym, "error": q["error"]})
                 continue
