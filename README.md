@@ -1,6 +1,7 @@
 # FinAgent：可观测的智谱 GLM 金融 Tool-Use Agent
 
 面向金融场景的 Tool-Use Agent：17 个确定性工具（复利/房贷/行情/组合/风险指标）+ 本地 BM25 RAG + JSONL 全链路 Trace + Gradio Web。
+Agent 方面其实界面设计还有待加强，后续会加强 memory 的设计
 
 **仓库**：https://github.com/zihim-mok/GLM-tool-use-agent-with-local-RAG-and-trace-logging  
 
@@ -162,4 +163,4 @@ CI：`.github/workflows/test.yml`（无需 API Key）
 
 ## 试试 RAG
 
-在 `knowledge/` 里编辑或新增 `.md`，然后提问例如：「复利和单利有什么区别？」「什么是可转债？」
+在 `knowledge/` 里编辑或新增 `.md`，然后提问例如："利和单利有什么区别？""什么是可转债？"
